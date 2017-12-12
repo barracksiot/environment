@@ -1,0 +1,364 @@
+version: '3.1'
+
+services:
+
+###########################################################
+## Common services
+###########################################################
+  mongodb:
+    image: mongo:3.2
+    restart: unless-stopped
+    volumes:
+      - barracks-data:/data/db
+    deploy:
+      mode: global
+      restart_policy:
+        condition: on-failure
+
+  swarm-vizualizer:
+    image: bargenson/docker-swarm-visualizer
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8080:8080"
+    deploy:
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+
+###########################################################
+## Legacy services
+###########################################################
+
+  legacy-web-ui:
+    image: barracksiot-docker-services.bintray.io/barracks-web-ui:${BARRACKS_LEGACY_BRANCH}
+    links:
+     - legacy-member-gateway
+     - subscription-service
+     - authorization-service
+    restart: unless-stopped
+    deploy:
+      restart_policy:
+        condition: on-failure
+
+  legacy-device-service:
+    image: barracksiot-docker-services.bintray.io/barracks-device-service:${BARRACKS_LEGACY_BRANCH}
+    restart: unless-stopped
+    links:
+      - mongodb
+    environment:
+      - SPRING_DATA_MONGODB_URI=mongodb://mongodb:27017/barracks
+    deploy:
+      restart_policy:
+        condition: on-failure
+
+  legacy-google-analytics-service:
+    image: barracksiot-docker-services.bintray.io/barracks-googleanalytics-service:${BARRACKS_LEGACY_BRANCH}
+    restart: unless-stopped
+    links:
+      - authorization-service
+      - rabbitmq
+    environment:
+      - IO_BARRACKS_AUTHORIZATIONSERVICE_BASE_URL=http://authorization-service:8080
+      - IO_BARRACKS_AMQP_URI=amqp://private:private@rabbitmq/internal
+    deploy:
+      restart_policy:
+        condition: on-failure
+
+  legacy-member-gateway:
+    image: barracksiot-docker-services.bintray.io/barracks-member-gateway:${BARRACKS_LEGACY_BRANCH}
+    restart: unless-stopped
+    command: ["java", "-jar", "app.jar", "-Djava.security.egd=file:/dev/./urandom"]
+    links:
+      - legacy-update-service
+      - legacy-package-service
+      - legacy-device-service
+      - authorization-service
+    environment:
+      - IO_BARRACKS_UPDATESERVICE_BASE_URL=http://legacy-update-service:8080
+      - IO_BARRACKS_PACKAGESERVICE_BASE_URL=http://legacy-package-service:8080
+      - IO_BARRACKS_DEVICESERVICE_BASE_URL=http://legacy-device-service:8080
+      - IO_BARRACKS_AUTHORIZATIONSERVICE_BASE_URL=http://authorization-service:8080
+    deploy:
+      restart_policy:
+        condition: on-failure
+
+  legacy-package-service:
+    image: barracksiot-docker-services.bintray.io/barracks-package-service:${BARRACKS_LEGACY_BRANCH}
+    restart: unless-stopped
+    links:
+      - mongodb
+    environment:
+      - SPRING_DATA_MONGODB_URI=mongodb://mongodb:27017/barracks
+    deploy:
+      restart_policy:
+        condition: on-failure
+
+  legacy-update-service:
+    image: barracksiot-docker-services.bintray.io/barracks-update-service:${BARRACKS_LEGACY_BRANCH}
+    restart: unless-stopped
+    links:
+      - mongodb
+    environment:
+      - SPRING_DATA_MONGODB_URI=mongodb://mongodb:27017/barracks
+    deploy:
+      restart_policy:
+        condition: on-failure
+
+###########################################################
+## V2 services
+###########################################################
+
+  authorization-service:
+    image: barracksiot-docker-services.bintray.io/barracks-authorization-service:${BARRACKS_BRANCH}
+    restart: unless-stopped
+    command: ["java", "-jar", "app.jar", "-Djava.security.egd=file:/dev/./urandom"]
+    links:
+      - mongodb
+    environment:
+      - SPRING_DATA_MONGODB_URI=mongodb://mongodb:27017/barracks
+      - IO_BARRACKS_AUTHORIZATIONSERVICE_BASE_URL=${BASE_URL}
+      - IO_BARRACKS_AUTHORIZATIONSERVICE_S3CR3T=
+      - SPRING_MAIL_HOST=
+      - SPRING_MAIL_USERNAME=
+      - SPRING_MAIL_PASSWORD=
+      - SPRING_MAIL_PROPERTIES_MAIL_SMTP_HOST=
+      - SPRING_MAIL_PROPERTIES_MAIL_SMTP_PORT=
+      - IO_BARRACKS_AUTHORIZATIONSERVICE_RESET_PASSWORD_MAIL_FROM=
+      - IO_BARRACKS_AUTHORIZATIONSERVICE_RESET_PASSWORD_MAIL_REPLY_TO=
+    deploy:
+      restart_policy:
+        condition: on-failure
+
+  bigquery-service:
+    image: barracksiot-docker-services.bintray.io/barracks-bigquery-service:${BARRACKS_BRANCH}
+    restart: unless-stopped
+    links:
+      - rabbitmq
+    environment:
+      - IO_BARRACKS_AMQP_URI=amqp://private:private@rabbitmq/internal
+    deploy:
+      restart_policy:
+        condition: on-failure
+
+  component-service:
+    image: barracksiot-docker-services.bintray.io/barracks-component-service:${BARRACKS_BRANCH}
+    restart: unless-stopped
+    links:
+      - mongodb
+    environment:
+      - SPRING_DATA_MONGODB_URI=mongodb://mongodb:27017/barracks
+    deploy:
+      restart_policy:
+        condition: on-failure
+
+  deployment-service:
+    image: barracksiot-docker-services.bintray.io/barracks-deployment-service:${BARRACKS_BRANCH}
+    restart: unless-stopped
+    links:
+      - mongodb
+      - device-service
+      - component-service
+    environment:
+      - SPRING_DATA_MONGODB_URI=mongodb://mongodb:27017/barracks
+      - IO_BARRACKS_DEVICESERVICE_BASE_URL=http://device-service:8080
+      - IO_BARRACKS_COMPONENTSERVICE_BASE_URL=http://component-service:8080
+    deploy:
+      restart_policy:
+        condition: on-failure
+
+  event-dispatcher:
+    image: barracksiot-docker-services.bintray.io/barracks-eventdispatcher:${BARRACKS_BRANCH}
+    restart: unless-stopped
+    links:
+      - authorization-service
+      - rabbitmq
+      - mongodb
+    environment:
+      - SPRING_DATA_MONGODB_URI=mongodb://mongodb:27017/barracks
+      - IO_BARRACKS_AUTHORIZATIONSERVICE_BASE_URL=http://authorization-service:8080
+      - IO_BARRACKS_AMQP_URI=amqp://private:private@rabbitmq/internal
+    deploy:
+      restart_policy:
+        condition: on-failure
+
+  device-gateway:
+    image: barracksiot-docker-services.bintray.io/barracks-device-gateway:${BARRACKS_BRANCH}
+    restart: unless-stopped
+    command: ["java", "-jar", "app.jar", "-Djava.security.egd=file:/dev/./urandom"]
+    links:
+      - legacy-update-service
+      - authorization-service
+      - legacy-package-service
+      - legacy-device-service
+      - device-service
+      - rabbitmq
+      - component-service
+      - deployment-service
+    environment:
+      - IO_BARRACKS_UPDATESERVICE_BASE_URL=http://legacy-update-service:8080
+      - IO_BARRACKS_AUTHORIZATIONSERVICE_BASE_URL=http://authorization-service:8080
+      - IO_BARRACKS_PACKAGESERVICE_BASE_URL=http://legacy-package-service:8080
+      - IO_BARRACKS_DEVICESERVICE_BASE_URL=http://legacy-device-service:8080
+      - IO_BARRACKS_DEVICESERVICE_V2_BASE_URL=http://device-service:8080
+      - IO_BARRACKS_AMQP_URI=amqp://private:private@rabbitmq/internal
+      - IO_BARRACKS_COMPONENTSERVICE_BASE_URL=http://component-service:8080
+      - IO_BARRACKS_DEPLOYMENTSERVICE_BASE_URL=http://deployment-service:8080
+    deploy:
+      restart_policy:
+        condition: on-failure
+
+  device-service:
+    image: barracksiot-docker-services.bintray.io/barracks-device-service:${BARRACKS_BRANCH}
+    restart: unless-stopped
+    links:
+      - mongodb
+      - rabbitmq
+    environment:
+      - SPRING_DATA_MONGODB_URI=mongodb://mongodb:27017/barracks
+      - IO_BARRACKS_AMQP_URI=amqp://private:private@rabbitmq/internal
+    deploy:
+      restart_policy:
+        condition: on-failure
+
+  frontend-server:
+    image: barracksiot-docker-services.bintray.io/barracks-frontend-server:${BARRACKS_BRANCH}
+    restart: unless-stopped
+    links:
+     - legacy-web-ui
+     - web-ui
+     - legacy-member-gateway
+     - member-gateway
+     - device-gateway
+     - subscription-service
+     - authorization-service
+     - messaging-service
+     - event-dispatcher
+    ports:
+      - "80:80"
+      - "443:443"
+    deploy:
+      mode: global
+      restart_policy:
+        condition: on-failure
+
+  google-analytics-service:
+    image: barracksiot-docker-services.bintray.io/barracks-googleanalytics-service:${BARRACKS_BRANCH}
+    restart: unless-stopped
+    links:
+      - rabbitmq
+    environment:
+      - IO_BARRACKS_AMQP_URI=amqp://private:private@rabbitmq/internal
+    deploy:
+      restart_policy:
+        condition: on-failure
+
+  member-gateway:
+    image: barracksiot-docker-services.bintray.io/barracks-member-gateway:${BARRACKS_BRANCH}
+    restart: unless-stopped
+    command: ["java", "-jar", "app.jar", "-Djava.security.egd=file:/dev/./urandom"]
+    links:
+      - component-service
+      - deployment-service
+      - authorization-service
+      - device-service
+    environment:
+      - IO_BARRACKS_COMPONENTSERVICE_BASE_URL=http://component-service:8080
+      - IO_BARRACKS_DEPLOYMENTSERVICE_BASE_URL=http://deployment-service:8080
+      - IO_BARRACKS_AUTHORIZATIONSERVICE_BASE_URL=http://authorization-service:8080
+      - IO_BARRACKS_DEVICESERVICE_BASE_URL=http://device-service:8080
+    deploy:
+      restart_policy:
+        condition: on-failure
+
+  messaging-service:
+    image: barracksiot-docker-services.bintray.io/barracks-messaging-service:${BARRACKS_BRANCH}
+    restart: unless-stopped
+    links:
+      - authorization-service
+      - rabbitmq
+    environment:
+      - IO_BARRACKS_AUTHORIZATIONSERVICE_BASE_URL=http://authorization-service:8080
+      - IO_BARRACKS_DEVICESERVICE_V2_BASE_URL=http://device-service:8080
+      - IO_BARRACKS_MQTT_URI=tcp://rabbitmq:1883
+    deploy:
+      restart_policy:
+        condition: on-failure
+
+  rabbitmq:
+    image: barracksiot-docker-services.bintray.io/barracks-rabbitmq:${BARRACKS_BRANCH}
+    restart: unless-stopped
+    links:
+       - rabbitmq-auth-service
+    volumes:
+       - barracks-queues:/var/lib/rabbitmq
+    ports:
+       - "1883:1883"
+    environment:
+       - VHOST_INTERNAL_USERNAME=private
+       - VHOST_INTERNAL_PASSWORD=private
+       - VHOST_DEFAULT_USERNAME=public
+       - VHOST_DEFAULT_PASSWORD=public
+       - IO_BARRACKS_RABBITMQAUTHSERVICE_BASE_URL=rabbitmq-auth-service:8080
+    deploy:
+      restart_policy:
+        condition: on-failure
+
+  rabbitmq-auth-service:
+    image: barracksiot-docker-services.bintray.io/barracks-rabbitmq-auth-service:${BARRACKS_BRANCH}
+    restart: unless-stopped
+    links:
+      - authorization-service
+    environment:
+      - IO_BARRACKS_AUTHORIZATIONSERVICE_BASE_URL=http://authorization-service:8080
+    deploy:
+      restart_policy:
+        condition: on-failure
+
+
+  subscription-service:
+    image: barracksiot-docker-services.bintray.io/barracks-subscription-service:${BARRACKS_BRANCH}
+    restart: unless-stopped
+    links:
+      - authorization-service
+      - legacy-device-service
+      - device-service
+    environment:
+      - IO_BARRACKS_AUTHORIZATIONSERVICE_BASE_URL=http://authorization-service:8080
+      - IO_BARRACKS_DEVICESERVICE_BASE_URL=http://legacy-device-service:8080
+      - IO_BARRACKS_DEVICESERVICE_V2_BASE_URL=http://device-service:8080
+      - COM_CHEDDARGETTER_PASSWORD=
+      - COM_CHEDDARGETTER_PRODUCT_CODE=
+    deploy:
+      restart_policy:
+        condition: on-failure
+
+  web-ui:
+    image: barracksiot-docker-services.bintray.io/barracks-web-ui:${BARRACKS_BRANCH}
+    links:
+     - member-gateway
+     - subscription-service
+     - authorization-service
+    restart: unless-stopped
+    deploy:
+      restart_policy:
+        condition: on-failure
+
+  webhook-service:
+    image: barracksiot-docker-services.bintray.io/barracks-webhook-service:${BARRACKS_BRANCH}
+    restart: unless-stopped
+    links:
+      - rabbitmq
+    environment:
+      - IO_BARRACKS_AMQP_URI=amqp://private:private@rabbitmq/internal
+    deploy:
+      restart_policy:
+        condition: on-failure
+
+volumes:
+  barracks-data:
+    driver: local
+  barracks-queues:
+    driver: local

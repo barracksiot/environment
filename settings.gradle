@@ -1,0 +1,51 @@
+include(
+        ":common-libs",
+        ":common-test-libs",
+        ":device-gateway",
+        ":member-gateway",
+        ":authorization-service",
+        ":device-service",
+        ":subscription-service",
+        ":component-service",
+        ":deployment-service",
+        ":google-analytics-service",
+        ":bigquery-service",
+        ":messaging-service",
+        ":rabbitmq-auth-service",
+        ":event-dispatcher",
+        ":webhook-service",
+
+        ":legacy-device-service",
+        ":legacy-google-analytics-service",
+        ":legacy-member-gateway",
+        ":legacy-update-service",
+        ":legacy-package-service",
+        ":legacy-web-ui",
+        ":legacy-common-libs",
+        ":legacy-common-test-libs"
+)
+
+project(":common-libs").projectDir = new File("libs/common")
+project(":common-test-libs").projectDir = new File("libs/common-test")
+project(":device-gateway").projectDir = new File("gateways/device")
+project(":member-gateway").projectDir = new File("gateways/member")
+project(":authorization-service").projectDir = new File("services/authorization")
+project(":device-service").projectDir = new File("services/device")
+project(":subscription-service").projectDir = new File("services/subscription")
+project(":component-service").projectDir = new File("services/component")
+project(":deployment-service").projectDir = new File("services/deployment")
+project(":google-analytics-service").projectDir = new File("services/google-analytics")
+project(":bigquery-service").projectDir = new File("services/bigquery")
+project(":messaging-service").projectDir = new File("services/messaging")
+project(":rabbitmq-auth-service").projectDir = new File("services/rabbitmq-auth")
+project(":event-dispatcher").projectDir = new File("services/event-dispatcher")
+project(":webhook-service").projectDir = new File("services/webhook")
+
+project(":legacy-device-service").projectDir = new File("v1/device-service")
+project(":legacy-google-analytics-service").projectDir = new File("v1/google-analytics-service")
+project(":legacy-member-gateway").projectDir = new File("v1/member-gateway")
+project(":legacy-package-service").projectDir = new File("v1/package-service")
+project(":legacy-update-service").projectDir = new File("v1/update-service")
+project(":legacy-web-ui").projectDir = new File("v1/web-ui")
+project(":legacy-common-libs").projectDir = new File("v1/common-libs")
+project(":legacy-common-test-libs").projectDir = new File("v1/common-test-libs")
